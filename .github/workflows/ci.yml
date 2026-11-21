@@ -26,10 +26,20 @@ jobs:
         env:
           STACK: ${{ inputs.stack }}
         run: |
-          case "$STACK" in bun|go|rust) ;; *) exit 1 ;; esac
+          case "$STACK" in bun|go|rust|docs) ;; *) exit 1 ;; esac
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - name: Check README
+        if: inputs.stack == 'docs'
+        run: |
+          if [ -f Cargo.toml ] || [ -f go.mod ] || [ -f package.json ]; then
+            echo "::error::Select the build stack for this directory before merging source code."
+            exit 1
+          fi
+          test -s README.md
+          empty_tree=$(git hash-object -w -t tree --stdin </dev/null)
+          git diff --check "$empty_tree" HEAD -- README.md
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         if: inputs.stack == 'bun'
         with:

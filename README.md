@@ -37,6 +37,8 @@ cp projects.example.json ~/.config/ci-hub/projects.json
 
 Gitleaks 오탐을 확인했으면 해당 프로젝트의 로컬 설정에 `gitleaks_ignore_fingerprints` 배열을 추가합니다. 각 항목은 검토한 탐지 결과의 전체 지문입니다.
 
+README만 있는 프로젝트에는 `prepare PROJECT_ID --stack docs`를 사용합니다. 이 설정은 README의 공백 오류와 충돌 표시를 검사합니다. 소스 코드를 병합할 때 호출 워크플로의 `stack` 값을 해당 빌드 환경으로 바꿉니다.
+
 GitLab 저장소에서 연결을 변경하려면 **Settings > Repository > Mirroring repositories**를 엽니다. 스케줄 전에 `approved`에서 프로젝트를 제거하면 브리지가 상태 보고를 중지합니다. GitLab Push Mirror는 별도로 비활성화해야 합니다. 이미 공개된 커밋은 복제본에 남을 수 있습니다.
 
 ## 주기 실행

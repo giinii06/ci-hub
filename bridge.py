@@ -22,6 +22,7 @@ STATES = {
 }
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
+STACKS = ("bun", "go", "rust", "docs")
 FINGERPRINT_PATTERN = re.compile(r"[0-9a-f]{40}:[^\r\n]+:[A-Za-z0-9_-]+:[1-9][0-9]*")
 GIT_ENV = dict(os.environ, GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10")
 
@@ -104,7 +105,7 @@ def discovery(config):
 
 
 def caller(config, stack, directory):
-    if stack not in {"bun", "go", "rust"}:
+    if stack not in STACKS:
         raise ValueError(f"Unsupported stack: {stack}")
     if not re.fullmatch(r"(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+", directory) or ".." in directory.split("/"):
         raise ValueError("Use a repository-relative CI directory")
@@ -417,7 +418,7 @@ def main():
     scan_parser.add_argument("id", type=int)
     prepare_parser = sub.add_parser("prepare")
     prepare_parser.add_argument("id", type=int)
-    prepare_parser.add_argument("--stack", choices=["bun", "go", "rust"])
+    prepare_parser.add_argument("--stack", choices=STACKS)
     prepare_parser.add_argument("--directory", default=".")
     args = parser.parse_args()
     try:
