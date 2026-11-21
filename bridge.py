@@ -272,6 +272,12 @@ def provision(config, entry, project, repo):
         raise ValueError(f"{project_id}: prepare and merge the matching caller first")
     if file_at(project_id, sha, REVERSE_WORKFLOW):
         raise ValueError(f"{project_id}: remove the GitHub-to-GitLab workflow before activation")
+    legacy_repo = f"{config['github_owner']}/{project['path']}"
+    if legacy_repo.lower() != repo.lower():
+        reverse = github(f"repos/{legacy_repo}/actions/workflows/{Path(REVERSE_WORKFLOW).name}",
+                         missing=True)
+        if reverse and reverse["state"] == "active":
+            raise ValueError(f"{legacy_repo}: disable the active GitHub-to-GitLab workflow first")
     approved_tags = entry.get("tags", {})
     if tags(project) != approved_tags:
         raise ValueError(f"{project_id}: GitLab tags differ from the publication approval")

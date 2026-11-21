@@ -32,7 +32,7 @@ class PublicationTests(unittest.TestCase):
                 patch.object(bridge, "caller", return_value="caller"), \
                 patch.object(bridge, "tags", return_value={"release": "b" * 40}):
             with self.assertRaisesRegex(ValueError, "tags differ"):
-                bridge.provision(config, entry, {"id": 1}, "example/mirror")
+                bridge.provision(config, entry, {"id": 1, "path": "source"}, "example/mirror")
 
         self.assertTrue(calls)
         self.assertEqual({method for _, _, method in calls}, {"GET"})
