@@ -1,0 +1,57 @@
+name: Project CI
+
+on:
+  workflow_call:
+    inputs:
+      stack:
+        required: true
+        type: string
+      directory:
+        default: .
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ${{ inputs.directory }}
+    steps:
+      - name: Check stack
+        env:
+          STACK: ${{ inputs.stack }}
+        run: |
+          case "$STACK" in bun|go|rust) ;; *) exit 1 ;; esac
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        if: inputs.stack == 'bun'
+        with:
+          bun-version: latest
+      - name: Test and build Bun
+        if: inputs.stack == 'bun'
+        run: |
+          bun install --frozen-lockfile
+          bun run --if-present typecheck
+          bun run --if-present test
+          bun run --if-present build
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        if: inputs.stack == 'go'
+        with:
+          go-version-file: ${{ inputs.directory }}/go.mod
+          cache-dependency-path: ${{ inputs.directory }}/go.sum
+      - name: Test and build Go
+        if: inputs.stack == 'go'
+        run: |
+          go test ./...
+          go build ./...
+      - name: Test and build Rust
+        if: inputs.stack == 'rust'
+        run: |
+          cargo test --locked --workspace
+          cargo build --locked --workspace
