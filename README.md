@@ -1,6 +1,16 @@
 # GitLab to GitHub CI
 
-GitLab이 원본입니다. 공개가 승인된 프로젝트마다 GitHub 공개 저장소를 만들고, GitLab Push Mirror가 보호된 `main`과 Git 태그를 전달합니다. GitHub Actions는 중앙 `ci.yml@v1`로 빌드와 테스트를 실행합니다. 로컬 브리지가 `glab`으로 같은 SHA의 GitLab Commit Status를 기록합니다.
+GitLab이 원본입니다. GitLab Push Mirror가 보호된 `main`과 태그를 공개 GitHub 미러에 동기화합니다. CI의 빌드와 테스트는 미러의 GitHub-hosted Runner에서 실행합니다.
+
+## ChatGPT 웹에서 CI 요청
+
+1. ChatGPT 웹에서 GitLab 플러그인을 선택합니다.
+2. 프로젝트와 브랜치를 지정해 파이프라인을 생성합니다. 예를 들어 “GitLab의 `my_streamio`에서 `ci/github-parallel-verification` 브랜치의 파이프라인을 생성하고 결과를 확인해”라고 요청합니다.
+3. GitLab 파이프라인에서 `github-actions/ci-hub-request` 작업과 GitHub Actions 링크를 확인합니다. 결과 보고는 GitLab에 요청한 동일한 커밋과 파이프라인을 사용합니다.
+
+등록된 프로젝트의 API 및 웹 요청을 GitHub에 호스팅된 컨트롤러가 5분 주기로 확인합니다. GitHub 스케줄과 러너 대기 시간에 따라 시작과 결과 반영 시각이 달라집니다. GitLab의 `github_actions_request`는 수동 표시용 작업입니다. ChatGPT에서 파이프라인을 만들면 GitHub가 빌드와 테스트를 실행합니다.
+
+기능 브랜치 요청은 비밀값 검사를 거친 뒤 해당 커밋과 도달 가능한 이력을 공개 미러에 게시합니다. Rust 요청에서 HLS 통합 테스트가 있는 경우 빌드·테스트, Clippy, HLS는 독립 작업으로 실행합니다.
 
 ## 준비
 
@@ -41,9 +51,11 @@ README만 있는 프로젝트에는 `prepare PROJECT_ID --stack docs`를 사용�
 
 GitLab 저장소에서 연결을 변경하려면 **Settings > Repository > Mirroring repositories**를 엽니다. 스케줄 전에 `approved`에서 프로젝트를 제거하면 브리지가 상태 보고를 중지합니다. GitLab Push Mirror는 별도로 비활성화해야 합니다. 이미 공개된 커밋은 복제본에 남을 수 있습니다.
 
-## 주기 실행
+## 운영
 
-`python3 bridge.py tick`을 로그인 계정으로 5분마다 실행하도록 예약합니다. `discovered.json`에서 신규 프로젝트를 확인할 수 있습니다. 실제 동기화는 GitLab이 실행합니다. 결과 보고는 이 계정의 스케줄러가 실행 중일 때 동작하며, 회차마다 호출 워크플로의 최근 실행 최대 50건에서 완료된 `main` 푸시 실행을 확인합니다. 연결된 저장소에 GitLab API 토큰을 등록할 필요는 없습니다.
+GitLab 프로젝트의 CI 구성 경로는 공통 요청 템플릿을 가리킵니다. GitHub 공개 미러에는 `gitlab-request.yml` 진입 워크플로가 필요합니다. GitLab 프로젝트별 토큰은 비공개 컨트롤러의 Actions Secrets에서 관리합니다. 새 프로젝트는 이 컨트롤러에 등록합니다.
+
+로컬 `bridge.py discover`, `prepare`, `scan`, `reconcile`은 미러 초기 설정과 수동 진단에 사용할 수 있습니다.
 
 공통 CI를 갱신하려면 중앙 저장소의 `v1` 브랜치를 업데이트합니다. 각 프로젝트의 호출 파일은 동일한 `v1`을 참조합니다.
 

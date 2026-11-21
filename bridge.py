@@ -234,7 +234,7 @@ def find_mirror(base, repo):
         existing_url = mirror["url"].lower()
         if existing_url == url:
             mirrors.append(mirror)
-        elif re.search(r"(?:^|[@/])github\.com(?=[:/])", existing_url):
+        elif mirror["enabled"] and re.search(r"(?:^|[@/])github\.com(?=[:/])", existing_url):
             raise ValueError(f"{repo}: project already has a different GitHub push mirror")
     if len(mirrors) > 1:
         raise ValueError(f"{repo}: multiple GitLab mirrors")
