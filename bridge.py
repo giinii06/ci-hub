@@ -22,6 +22,7 @@ STATES = {
 }
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
+FINGERPRINT_PATTERN = re.compile(r"[0-9a-f]{40}:[^\r\n]+:[A-Za-z0-9_-]+:[1-9][0-9]*")
 GIT_ENV = dict(os.environ, GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10")
 
 
@@ -193,7 +194,7 @@ def tags(project):
             (row.split("\t") for row in output.splitlines())}
 
 
-def scan(project, sha, approved_tags):
+def scan(project, sha, approved_tags, ignored_fingerprints=()):
     with tempfile.TemporaryDirectory(prefix="ci-hub-") as repository:
         try:
             run("git", "clone", "--bare", "--single-branch", "--branch", "main",
@@ -206,9 +207,11 @@ def scan(project, sha, approved_tags):
                             (row.split("\t") for row in output.splitlines())}
             if fetched != sha or fetched_tags != approved_tags:
                 raise ValueError(f"{project['id']}: main or tags changed during the scan")
+            ignore_file = Path(repository) / ".gitleaksignore"
+            ignore_file.write_text("".join(f"{fingerprint}\n" for fingerprint in ignored_fingerprints))
             scanner_env = {k: v for k, v in os.environ.items() if not k.startswith("GITLEAKS_")}
             run("gitleaks", "git", "--redact=100", "--ignore-gitleaks-allow",
-                "--gitleaks-ignore-path", repository, "--log-opts", "--branches --tags",
+                "--gitleaks-ignore-path", str(ignore_file), "--log-opts", "--branches --tags",
                 repository, env=scanner_env)
         except CommandError as error:
             raise ValueError(f"{project['id']}: {error}. Inspect the scan locally before approval.") from None
@@ -281,7 +284,7 @@ def provision(config, entry, project, repo):
     approved_tags = entry.get("tags", {})
     if tags(project) != approved_tags:
         raise ValueError(f"{project_id}: GitLab tags differ from the publication approval")
-    scan(project, sha, approved_tags)
+    scan(project, sha, approved_tags, entry.get("gitleaks_ignore_fingerprints", []))
     if target and (github(f"{path}/branches") or github(f"{path}/tags")):
         raise ValueError(f"{repo}: expected an empty repository before enabling the mirror")
     if not target:
@@ -392,6 +395,11 @@ def load_config(path):
             raise ValueError("Each project and mirror name must be unique")
         if any(not SHA_PATTERN.fullmatch(value) for value in entry.get("tags", {}).values()):
             raise ValueError("Each approved tag needs its full Git object SHA")
+        fingerprints = entry.get("gitleaks_ignore_fingerprints", [])
+        if not isinstance(fingerprints, list) or any(
+            not FINGERPRINT_PATTERN.fullmatch(value) for value in fingerprints
+        ):
+            raise ValueError("Each scanner exception must be a full Gitleaks fingerprint")
         ids.add(project_id)
         names.add(name.lower())
     return config
@@ -419,7 +427,9 @@ def main():
         elif args.command == "scan":
             project = source(config, args.id)
             source_tags = tags(project)
-            scan(project, preflight(project, None), source_tags)
+            entry = next((item for item in config["approved"] if item["id"] == args.id), {})
+            scan(project, preflight(project, None), source_tags,
+                 entry.get("gitleaks_ignore_fingerprints", []))
             print(json.dumps(source_tags, ensure_ascii=False, indent=2))
         else:
             with args.config.with_name(".bridge.lock").open("a") as lock:

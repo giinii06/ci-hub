@@ -35,6 +35,8 @@ cp projects.example.json ~/.config/ci-hub/projects.json
 
 6. `python3 bridge.py tick`을 실행합니다. 최초 연결 시 승인 SHA, 태그, 호출 파일을 확인하고 커밋 이력을 검사합니다. GitHub 공개 저장소와 해당 저장소 전용 SSH deploy key를 만들고 GitLab 미러를 활성화합니다.
 
+Gitleaks 오탐을 확인했으면 해당 프로젝트의 로컬 설정에 `gitleaks_ignore_fingerprints` 배열을 추가합니다. 각 항목은 검토한 탐지 결과의 전체 지문입니다.
+
 GitLab 저장소에서 연결을 변경하려면 **Settings > Repository > Mirroring repositories**를 엽니다. 스케줄 전에 `approved`에서 프로젝트를 제거하면 브리지가 상태 보고를 중지합니다. GitLab Push Mirror는 별도로 비활성화해야 합니다. 이미 공개된 커밋은 복제본에 남을 수 있습니다.
 
 ## 주기 실행
