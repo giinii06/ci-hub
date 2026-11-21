@@ -8,7 +8,7 @@ GitLab이 원본입니다. GitLab Push Mirror가 보호된 `main`과 태그를 �
 2. 프로젝트와 브랜치를 지정해 파이프라인을 생성합니다. 예를 들어 “GitLab의 `my_streamio`에서 `ci/github-parallel-verification` 브랜치의 파이프라인을 생성하고 결과를 확인해”라고 요청합니다.
 3. GitLab 파이프라인에서 `github-actions/ci-hub-request` 작업과 GitHub Actions 링크를 확인합니다. 결과 보고는 GitLab에 요청한 동일한 커밋과 파이프라인을 사용합니다.
 
-등록된 프로젝트의 API 및 웹 요청을 GitHub에 호스팅된 컨트롤러가 5분 주기로 확인합니다. GitHub 스케줄과 러너 대기 시간에 따라 시작과 결과 반영 시각이 달라집니다. GitLab의 `github_actions_request`는 수동 표시용 작업입니다. ChatGPT에서 파이프라인을 만들면 GitHub가 빌드와 테스트를 실행합니다.
+등록된 프로젝트에서 API 또는 웹으로 파이프라인을 만들면 GitLab의 `dispatch_github_actions`가 GitLab Runner 없이 공통 웹훅을 시작합니다. 웹훅은 호스팅된 GitHub 컨트롤러를 깨우고, 컨트롤러는 공개 미러에 CI를 예약합니다. 검증 결과는 `github-actions/ci-hub-request` 작업에서 확인합니다. 정기 확인은 재전송과 결과 복구를 담당합니다.
 
 기능 브랜치 요청은 비밀값 검사를 거친 뒤 해당 커밋과 도달 가능한 이력을 공개 미러에 게시합니다. Rust 요청에서 HLS 통합 테스트가 있는 경우 빌드·테스트, Clippy, HLS는 독립 작업으로 실행합니다.
 
