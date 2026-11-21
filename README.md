@@ -18,7 +18,7 @@ cp projects.example.json ~/.config/ci-hub/projects.json
 
 1. `python3 bridge.py discover`로 비공개 프로젝트 ID를 확인합니다.
 2. `python3 bridge.py prepare PROJECT_ID`를 실행합니다. 매니페스트가 여럿 있으면 `--stack bun`, `--stack go`, `--stack rust` 가운데 하나를 지정합니다. 모듈이 하위 디렉터리에 있으면 `--directory`로 경로를 지정합니다.
-3. 출력된 GitLab MR을 검토하고 병합합니다. GitLab에서 이 프로젝트의 유일한 보호 브랜치를 `main`으로 유지합니다.
+3. 출력된 GitLab MR을 검토하고 병합합니다. GitHub에서 GitLab으로 코드나 태그를 보내는 기존 워크플로와 Pull Mirror를 해제합니다. GitLab에서 이 프로젝트의 유일한 보호 브랜치를 `main`으로 유지합니다.
 4. `python3 bridge.py scan PROJECT_ID`를 실행합니다. `main`과 태그에서 도달할 수 있는 이력, 기존 GitHub Actions 워크플로를 검토합니다. 연결 후에는 새 `main` 커밋과 태그도 자동 공개됩니다. 다른 브랜치에 붙인 태그도 공개 대상입니다.
 5. 검토한 SHA와 프로젝트를 로컬 설정의 `approved` 배열에 추가합니다. `tags`에는 스캔 명령이 출력한 태그와 Git 객체 SHA를 넣습니다.
 
@@ -39,6 +39,6 @@ GitLab 저장소에서 연결을 변경하려면 **Settings > Repository > Mirro
 
 ## 주기 실행
 
-`python3 bridge.py tick`을 로그인 계정으로 5분마다 실행하도록 예약합니다. `discovered.json`에서 신규 프로젝트를 확인할 수 있습니다. 실제 동기화는 GitLab이 실행합니다. 결과 보고는 이 계정의 스케줄러가 실행 중일 때 동작하며, 회차마다 각 저장소의 최근 완료 실행 최대 50건을 조회합니다. 연결된 저장소에 GitLab API 토큰을 등록할 필요는 없습니다.
+`python3 bridge.py tick`을 로그인 계정으로 5분마다 실행하도록 예약합니다. `discovered.json`에서 신규 프로젝트를 확인할 수 있습니다. 실제 동기화는 GitLab이 실행합니다. 결과 보고는 이 계정의 스케줄러가 실행 중일 때 동작하며, 회차마다 호출 워크플로의 최근 실행 최대 50건에서 완료된 `main` 푸시 실행을 확인합니다. 연결된 저장소에 GitLab API 토큰을 등록할 필요는 없습니다.
 
 공통 CI를 갱신하려면 중앙 저장소의 `v1` 브랜치를 업데이트합니다. 각 프로젝트의 호출 파일은 동일한 `v1`을 참조합니다.

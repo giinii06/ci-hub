@@ -22,6 +22,8 @@ class PublicationTests(unittest.TestCase):
                 return [{"name": "main"}]
             if endpoint.endswith("/repository/branches/main"):
                 return {"commit": {"id": entry["sha"]}}
+            if "sync-to-gitlab.yml" in endpoint:
+                return None
             if "/repository/files/" in endpoint:
                 return {"content": "Y2FsbGVy"}
             self.fail(f"Unexpected call: {endpoint}")

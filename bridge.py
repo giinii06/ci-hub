@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 WORKFLOW = ".github/workflows/gitlab-bridge.yml"
+REVERSE_WORKFLOW = ".github/workflows/sync-to-gitlab.yml"
 CONTEXT = "github-actions/ci-hub"
 STATES = {
     "success": "success",
@@ -269,6 +270,8 @@ def provision(config, entry, project, repo):
     blob = file_at(project_id, sha)
     if blob is None or file_text(blob) != expected:
         raise ValueError(f"{project_id}: prepare and merge the matching caller first")
+    if file_at(project_id, sha, REVERSE_WORKFLOW):
+        raise ValueError(f"{project_id}: remove the GitHub-to-GitLab workflow before activation")
     approved_tags = entry.get("tags", {})
     if tags(project) != approved_tags:
         raise ValueError(f"{project_id}: GitLab tags differ from the publication approval")
@@ -317,8 +320,10 @@ def report(project_id, repo, state_db):
     endpoint = f"repos/{repo}/actions/workflows/gitlab-bridge.yml"
     if github(endpoint, missing=True) is None:
         return
-    runs = github(f"{endpoint}/runs?event=push&branch=main&status=completed&per_page=50",
-                  pages=False)["workflow_runs"]
+    runs = [
+        item for item in github(f"{endpoint}/runs?per_page=50")["workflow_runs"]
+        if item["event"] == "push" and item["head_branch"] == "main" and item["status"] == "completed"
+    ]
     seen = set()
     for attempt in sorted(runs, key=lambda item: (item["run_number"], item["run_attempt"]), reverse=True):
         sha = attempt["head_sha"]

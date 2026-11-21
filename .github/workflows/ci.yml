@@ -22,6 +22,7 @@ jobs:
         working-directory: ${{ inputs.directory }}
     steps:
       - name: Check stack
+        working-directory: .
         env:
           STACK: ${{ inputs.stack }}
         run: |
