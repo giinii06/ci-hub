@@ -21,6 +21,7 @@ STATES = {
 }
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
+GIT_ENV = dict(os.environ, GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10")
 
 
 class CommandError(Exception):
@@ -78,7 +79,7 @@ def source(config, project_id):
     project = gitlab(f"projects/{project_id}")
     if (project["namespace"]["full_path"] != config["gitlab_namespace"]
             or project["visibility"] != "private" or project["archived"]
-            or project["default_branch"] != "main"):
+            or project["default_branch"] != "main" or project.get("mirror") is True):
         raise ValueError(f"{project_id}: expected a private, active project on main in the configured namespace")
     return project
 
@@ -184,21 +185,33 @@ def preflight(project, expected):
     return head
 
 
-def scan(project, sha):
-    env = dict(os.environ, GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=10")
+def tags(project):
+    output = run("git", "ls-remote", "--refs", project["ssh_url_to_repo"], "refs/tags/*",
+                 env=GIT_ENV)
+    return {ref.removeprefix("refs/tags/"): sha for sha, ref in
+            (row.split("\t") for row in output.splitlines())}
+
+
+def scan(project, sha, approved_tags):
     with tempfile.TemporaryDirectory(prefix="ci-hub-") as repository:
         try:
             run("git", "clone", "--bare", "--single-branch", "--branch", "main",
-                "--no-tags", project["ssh_url_to_repo"], repository, env=env)
+                "--no-tags", project["ssh_url_to_repo"], repository, env=GIT_ENV)
+            run("git", "-C", repository, "fetch", "origin", "refs/tags/*:refs/tags/*", env=GIT_ENV)
             fetched = run("git", "-C", repository, "rev-parse", "refs/heads/main").strip()
-            if fetched != sha:
-                raise ValueError(f"{project['id']}: main changed during the scan")
+            output = run("git", "-C", repository, "for-each-ref",
+                         "--format=%(objectname)\t%(refname:strip=2)", "refs/tags")
+            fetched_tags = {name: value for value, name in
+                            (row.split("\t") for row in output.splitlines())}
+            if fetched != sha or fetched_tags != approved_tags:
+                raise ValueError(f"{project['id']}: main or tags changed during the scan")
             scanner_env = {k: v for k, v in os.environ.items() if not k.startswith("GITLEAKS_")}
             run("gitleaks", "git", "--redact=100", "--ignore-gitleaks-allow",
-                "--gitleaks-ignore-path", repository, "--log-opts", sha, repository, env=scanner_env)
+                "--gitleaks-ignore-path", repository, "--log-opts", "--branches --tags",
+                repository, env=scanner_env)
         except CommandError as error:
             raise ValueError(f"{project['id']}: {error}. Inspect the scan locally before approval.") from None
-    print(f"{project['id']}: scanned history reachable from {sha}", flush=True)
+    print(f"{project['id']}: scanned main {sha} and {len(approved_tags)} tag(s)", flush=True)
 
 
 def mirror_url(repo):
@@ -211,10 +224,13 @@ def repo_marker(project_id):
 
 def find_mirror(base, repo):
     url = mirror_url(repo).lower()
-    mirrors = [
-        m for m in gitlab(f"{base}/remote_mirrors?per_page=100", pages=True)
-        if m["url"].lower() == url
-    ]
+    mirrors = []
+    for mirror in gitlab(f"{base}/remote_mirrors?per_page=100", pages=True):
+        existing_url = mirror["url"].lower()
+        if existing_url == url:
+            mirrors.append(mirror)
+        elif re.search(r"(?:^|[@/])github\.com(?=[:/])", existing_url):
+            raise ValueError(f"{repo}: project already has a different GitHub push mirror")
     if len(mirrors) > 1:
         raise ValueError(f"{repo}: multiple GitLab mirrors")
     return mirrors[0] if mirrors else None
@@ -244,6 +260,8 @@ def provision(config, entry, project, repo):
             if not target:
                 raise ValueError(f"{repo}: enabled mirror has no GitHub repository")
             preflight(project, None)
+            if mirror["update_status"] == "none":
+                gitlab(f"{base}/remote_mirrors/{mirror['id']}/sync", method="POST")
             return
 
     expected = caller(config, entry["stack"], entry.get("directory", "."))
@@ -251,8 +269,11 @@ def provision(config, entry, project, repo):
     blob = file_at(project_id, sha)
     if blob is None or file_text(blob) != expected:
         raise ValueError(f"{project_id}: prepare and merge the matching caller first")
-    scan(project, sha)
-    if target and target["size"]:
+    approved_tags = entry.get("tags", {})
+    if tags(project) != approved_tags:
+        raise ValueError(f"{project_id}: GitLab tags differ from the publication approval")
+    scan(project, sha, approved_tags)
+    if target and (github(f"{path}/branches") or github(f"{path}/tags")):
         raise ValueError(f"{repo}: expected an empty repository before enabling the mirror")
     if not target:
         owner = github("user")["login"]
@@ -285,6 +306,8 @@ def provision(config, entry, project, repo):
     elif matching[0]["read_only"]:
         raise ValueError(f"{repo}: existing deploy key is read-only")
     preflight(project, sha)
+    if tags(project) != approved_tags:
+        raise ValueError(f"{project_id}: GitLab tags changed before mirror activation")
     gitlab(endpoint, method="PUT", body={"enabled": True})
     gitlab(f"{endpoint}/sync", method="POST")
     print(f"{project_id}: enabled mirror to {repo}", flush=True)
@@ -356,6 +379,8 @@ def load_config(path):
             raise ValueError("Invalid mirror repository name")
         if project_id in ids or name.lower() in names:
             raise ValueError("Each project and mirror name must be unique")
+        if any(not SHA_PATTERN.fullmatch(value) for value in entry.get("tags", {}).values()):
+            raise ValueError("Each approved tag needs its full Git object SHA")
         ids.add(project_id)
         names.add(name.lower())
     return config
@@ -382,7 +407,9 @@ def main():
             print(discovery(config), end="")
         elif args.command == "scan":
             project = source(config, args.id)
-            scan(project, preflight(project, None))
+            source_tags = tags(project)
+            scan(project, preflight(project, None), source_tags)
+            print(json.dumps(source_tags, ensure_ascii=False, indent=2))
         else:
             with args.config.with_name(".bridge.lock").open("a") as lock:
                 try:
