@@ -44,3 +44,5 @@ GitLab 저장소에서 연결을 변경하려면 **Settings > Repository > Mirro
 `python3 bridge.py tick`을 로그인 계정으로 5분마다 실행하도록 예약합니다. `discovered.json`에서 신규 프로젝트를 확인할 수 있습니다. 실제 동기화는 GitLab이 실행합니다. 결과 보고는 이 계정의 스케줄러가 실행 중일 때 동작하며, 회차마다 호출 워크플로의 최근 실행 최대 50건에서 완료된 `main` 푸시 실행을 확인합니다. 연결된 저장소에 GitLab API 토큰을 등록할 필요는 없습니다.
 
 공통 CI를 갱신하려면 중앙 저장소의 `v1` 브랜치를 업데이트합니다. 각 프로젝트의 호출 파일은 동일한 `v1`을 참조합니다.
+
+Bun 테스트에 FFmpeg가 필요한 저장소에는 `gh variable set CI_HUB_FFMPEG --body true -R OWNER/MIRROR`를 실행합니다.

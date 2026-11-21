@@ -34,6 +34,11 @@ jobs:
         if: inputs.stack == 'bun'
         with:
           bun-version: latest
+      - name: Install FFmpeg
+        if: inputs.stack == 'bun' && vars.CI_HUB_FFMPEG == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
       - name: Test and build Bun
         if: inputs.stack == 'bun'
         run: |
