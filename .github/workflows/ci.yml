@@ -12,6 +12,12 @@ on:
       checkout_ref:
         default: ''
         type: string
+      source:
+        default: ''
+        type: string
+    secrets:
+      gl_token:
+        required: false
 
 permissions:
   contents: read
@@ -30,7 +36,18 @@ jobs:
           STACK: ${{ inputs.stack }}
         run: |
           case "$STACK" in bun|go|rust|docs) ;; *) exit 1 ;; esac
+      - name: Checkout GitLab source
+        if: inputs.source != ''
+        working-directory: .
+        env:
+          GL_TOKEN: ${{ secrets.gl_token }}
+        run: |
+          auth=$(printf 'oauth2:%s' "$GL_TOKEN" | base64 -w0)
+          git init -q
+          git -c http.extraheader="Authorization: Basic $auth" fetch --no-tags -q "https://gitlab.com/${{ inputs.source }}.git" "${{ inputs.checkout_ref }}"
+          git checkout -q --detach FETCH_HEAD
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        if: inputs.source == ''
         with:
           persist-credentials: false
           ref: ${{ inputs.checkout_ref }}
