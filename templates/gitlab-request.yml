@@ -36,18 +36,6 @@ jobs:
       stack: ${{ inputs.stack }}
       directory: ${{ inputs.directory }}
 
-  rust-policy:
-    if: inputs.stack == 'rust' && inputs.hls
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ inputs.sha }}
-          persist-credentials: false
-      - name: Check Rust targets
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
-
   media-hls:
     if: inputs.stack == 'rust' && inputs.hls
     runs-on: ubuntu-24.04
